@@ -1,0 +1,288 @@
+ESQUEMA DE BASE DE DATOS - PANADERIA
+=====================================
+
+Motor: SQL Server
+Tipos: se usan DECIMAL (punto fijo, exacto). NO float / real.
+  cantidad / stock -> DECIMAL(10,3)
+  costo_unitario / precio_venta / total -> DECIMAL(10,2)
+Nota: SQL Server tiene tipo MONEY, pero DECIMAL es mas predecible.
+Las PK son INT IDENTITY (autoincrementales).
+
+======================================================================
+RESUMEN DEL SISTEMA
+======================================================================
+Sistema de gestion para una PANADERIA (SQL Server). Cubre la operacion
+diaria: comprar insumos, producir pan por lotes, vender en tienda (contado
+o fiado), manejar sobras, tomar pedidos y vender productos de bodega.
+
+Modulos:
+  1. INSUMOS         - materia prima, stock calculado.
+  2. PRODUCCION      - pan horneado por LOTE (destino tienda/interno, estado).
+  3. VENTAS PAN      - mostrador/pedido; contado o fiado (COBRO = pagos).
+  4. CLIENTES/PEDIDOS - encargos de clientes (3 estados).
+  5. SOBRAS          - tienda devuelve pan = PERDIDA; reuso en produccion.
+  6. BODEGA COMP.    - productos comprados para revender (separado del pan).
+  7. REPORTES        - VIEWS: VW_TIENDA_DIA (ingreso vs perdida), VW_MARGEN_DIA.
+
+Flujo central del lote de pan:
+  PRODUCCION (lote, estado 'seguimiento')
+    -> va a TIENDA como lote en seguimiento
+       -> se VENDE (contado/fiado) => ingreso / historial
+       -> se FIA                   => queda en seguimiento; COBRO hasta pagar
+       -> vuelve SOBRAS (perdida)  => merma (no genera ganancia)
+
+COSTO DE PRODUCCION (agregado en esta sesion):
+  - MATERIA PRIMA (insumos): OBLIGATORIO. Consumo real del lote
+    x INSUMO.costo_promedio (promedio ponderado, se actualiza al comprar).
+  - MANO DE OBRA: OPCIONAL. PRODUCCION.costo_mano_obra (NULL salvo ayuda
+    externa para ese lote). Lo comun: solo se gasta en insumos.
+  - Ganancia real (VW_MARGEN_DIA) = ingreso - costo_insumos - costo_mano.
+
+Decisiones clave: stock SIEMPRE calculado (no almacenado); tipos DECIMAL
+(punto fijo); dos "tiendas" separadas (shop del pan vs bodega de comprados);
+sin seguimiento de masa intermedia.
+
+----------------------------------------------------------------------
+DECISIONES DE DISENIO (simplificado, acordado)
+----------------------------------------------------------------------
+- Dos vias de inventario en la panaderia: INSUMOS y PRODUCTOS (pan).
+- El stock se CALCULA, no se almacena (una sola fuente de verdad: movimientos).
+- Sin seguimiento de masa intermedia: el sobrante de masa se absorbe como merma.
+- El consumo de insumos se registra por lote (uso real), no con receta.
+- COSTO de produccion = MATERIA PRIMA (insumos, obligatorio) + MANO DE OBRA
+  (opcional: solo si se contrata ayuda externa para un lote). Por lo general
+  solo se gasta en insumos.
+- SOBRAS es una tabla aparte (no se unifica con insumos) y se consume en produccion.
+- Dos conceptos de "TIENDA" (NO se confunden):
+    (a) TIENDA = la tienda/shop donde se vende el pan horneado.
+        El pan producido puede ir a la tienda como LOTE en SEGUIMIENTO.
+        De ahi: se vende (ganancia) o vuelve a SOBRAS (perdida).
+    (b) BODEGA DE COMPRADOS = productos comprados para revender (NO horneados).
+        Tablas TIENDA_PRODUCTO / COMPRA_TIENDA / VENTA_TIENDA, SEPARADAS
+        del pan. (Confirmado: se mantienen aparte.)
+
+======================================================================
+1) INSUMOS (materia prima de la panaderia)
+======================================================================
+
+INSUMO
+  id_insumo      INT IDENTITY PK
+  nombre         VARCHAR(100)
+  unidad         VARCHAR(10)   -- kg, g, u, lt
+  stock          DECIMAL(10,3) -- calculado: SUMA(ingresos) - SUMA(consumos)
+  costo_promedio DECIMAL(10,2) -- costo unitario promedio actual; se actualiza en
+                               -- INGRESO_INSUMO (promedio ponderado). Base del costo.
+
+INGRESO_INSUMO  (entrada de materia prima)
+  id_ingreso     INT IDENTITY PK
+  id_insumo      INT FK -> INSUMO
+  fecha          DATE
+  cantidad       DECIMAL(10,3)
+  costo_unitario DECIMAL(10,2)
+
+CONSUMO_INSUMO  (lo que se gasta por lote - uso real)
+  id_consumo     INT IDENTITY PK
+  id_produccion  INT FK -> PRODUCCION
+  id_insumo      INT FK -> INSUMO
+  cantidad       DECIMAL(10,3)
+
+======================================================================
+2) PRODUCTOS Y PRODUCCION (pan y derivados horneados)
+======================================================================
+
+PRODUCTO
+  id_producto   INT IDENTITY PK
+  nombre        VARCHAR(100)
+  categoria     VARCHAR(50)   -- pan, derivado, etc.
+  precio_venta  DECIMAL(10,2)
+  stock         DECIMAL(10,3) -- calculado: SUMA(producciones) - SUMA(ventas)
+
+PRODUCCION  (lo que sale horneado POR LOTE)
+  id_produccion   INT IDENTITY PK
+  fecha           DATE
+  id_producto     INT FK -> PRODUCTO
+  cantidad        DECIMAL(10,3)
+  destino         VARCHAR(15)  -- 'tienda' (opcion especial: va a la tienda como lote) / 'interno'
+  estado          VARCHAR(15) NOT NULL DEFAULT 'seguimiento'
+                               -- 'seguimiento' (en bodega/tienda o fiado pendiente)
+                               -- 'vendido' (cobrado -> historial de ventas)
+                               -- 'sobra'   (volvio a SOBRAS)
+  costo_mano_obra DECIMAL(10,2) NULL
+                               -- OPCIONAL: solo si se contrató ayuda externa para este lote.
+                               -- NULL = solo se gastó en insumos (lo común).
+
+  NOTA: cada PRODUCCION ES un lote. El lote vive en los 3 estados arriba.
+  COSTO de produccion = insumos (obligatorio) + mano de obra (opcional).
+
+======================================================================
+3) VENTAS DE PAN (salida de productos horneados)
+======================================================================
+
+VENTA  (cabecera de salida de pan: mostrador / pedido / interno / sobra)
+  id_venta     INT IDENTITY PK
+  fecha        DATE
+  id_pedido    INT NULL FK -> PEDIDO    -- NULL = venta de mostrador
+  id_cliente   INT NULL FK -> CLIENTE   -- quién debe (solo si es fiado)
+  canal        VARCHAR(15)   -- tienda / interno / sobra
+  estado_pago  VARCHAR(15)   -- 'contado' / 'fiado' / 'pagado'
+  total        DECIMAL(10,2) -- calculado de DETALLE_VENTA
+
+DETALLE_VENTA  (lineas de la venta de pan)
+  id_detalle      INT IDENTITY PK
+  id_venta        INT FK -> VENTA
+  id_producto     INT FK -> PRODUCTO
+  id_lote         INT NULL FK -> PRODUCCION  -- de qué lote salió (para ganancia/seguimiento)
+  cantidad        DECIMAL(10,3)
+  precio_unitario DECIMAL(10,2)  -- precio al momento de vender
+
+======================================================================
+4) CLIENTES, PEDIDOS Y COBROS (fiar)
+======================================================================
+
+CLIENTE  (quien solicita: cliente comun, tercero, o la propia panaderia)
+  id_cliente  INT IDENTITY PK
+  tipo        VARCHAR(10)   -- cliente / tercero / interno
+  nombre      VARCHAR(100)
+
+PEDIDO
+  id_pedido     INT IDENTITY PK
+  fecha_pedido  DATE
+  fecha_entrega DATE
+  id_cliente    INT FK -> CLIENTE
+  estado        VARCHAR(15)  -- aceptado / seguimiento / rechazado
+
+DETALLE_PEDIDO  (lineas del pedido)
+  id_detalle  INT IDENTITY PK
+  id_pedido   INT FK -> PEDIDO
+  id_producto INT FK -> PRODUCTO
+  cantidad    DECIMAL(10,3)
+
+COBRO  (registro de cada pago/abono de una venta fiada)
+  id_cobro     INT IDENTITY PK
+  id_venta     INT FK -> VENTA
+  fecha        DATE
+  monto        DECIMAL(10,2)
+  forma_pago   VARCHAR(15)  -- 'efectivo' / 'transferencia' / etc
+
+  REGLA: VENTA fiada queda estado_pago='fiado'. Cada COBRO suma.
+  Cuando SUM(COBRO.monto) >= VENTA.total -> estado_pago='pagado'
+  y el lote (PRODUCCION) pasa a estado='vendido' (ganancia completa).
+  "Fiado se paga completo": el total se cubre con 1 o varios cobros.
+
+======================================================================
+5) SOBRAS (pan sobrante en la tienda)
+======================================================================
+
+SOBRAS  (pan que vuelve de la tienda / se sobra)
+  id_sobra    INT IDENTITY PK
+  fecha       DATE
+  id_lote     INT FK -> PRODUCCION   -- de qué lote sobró
+  cantidad    DECIMAL(10,3)
+  destino     VARCHAR(20)   -- 'perdida' (tienda, merma, NO genera ganancia)
+                            -- 'rehacer_frances' / 'tostadas' (reuso en produccion)
+  estado      VARCHAR(12)   -- pendiente / usado  (solo aplica a reuso; 'perdida' no se usa)
+
+  NOTA: la sobra de TIENDA se registra con destino='perdida' (PÉRDIDA / merma).
+  No se recupera. En el reporte va como pérdida, aparte de la ganancia.
+
+CONSUMO_SOBRA  (la sobra de reuso se gasta DENTRO de la produccion)
+  id_consumo_sobra INT IDENTITY PK
+  id_produccion     INT FK -> PRODUCCION
+  id_sobra          INT FK -> SOBRAS
+  cantidad          DECIMAL(10,3)
+
+======================================================================
+6) BODEGA DE COMPRADOS (productos comprados para revender, NO horneados)
+======================================================================
+
+TIENDA_PRODUCTO  (catalogo de productos de bodega)
+  id_producto_tienda INT IDENTITY PK
+  nombre           VARCHAR(100)
+  precio_venta     DECIMAL(10,2)
+  stock            DECIMAL(10,3)  -- calculado: SUMA(compras) - SUMA(ventas)
+
+COMPRA_TIENDA  (ingreso de productos de bodega - se compran para revender)
+  id_compra           INT IDENTITY PK
+  id_producto_tienda  INT FK -> TIENDA_PRODUCTO
+  fecha               DATE
+  cantidad            DECIMAL(10,3)
+  costo_unitario      DECIMAL(10,2)
+
+VENTA_TIENDA  (salida de productos de bodega)
+  id_venta_tienda    INT IDENTITY PK
+  fecha              DATE
+  id_producto_tienda INT FK -> TIENDA_PRODUCTO
+  cantidad           DECIMAL(10,3)
+  total              DECIMAL(10,2)  -- calculado: cantidad * precio_venta
+
+======================================================================
+7) REPORTES (VIEWS, no tablas que guarden resultados)
+======================================================================
+
+VW_TIENDA_DIA  (reporte diario de la tienda: ingreso vs perdida)
+  Por día, para lotes con destino='tienda':
+    entro     = SUM(PRODUCCION.cantidad)                    donde destino='tienda'
+    ingreso   = SUM(DETALLE_VENTA.precio_unit * cantidad)
+                de lotes vendidos (contado + fiado ya pagado)
+    perdida   = SUM(SOBRAS.cantidad) donde destino='perdida'
+    seguimiento = fiado pendiente + stock que queda en lote
+
+  El pan es fungible: no se rastrea lote por lote vendido, se agrupa por día.
+
+VW_MARGEN_DIA  (rentabilidad real: ingreso - costo)
+  Por día:
+    ingreso        = SUM(Venta.total donde estado_pago en ('contado','pagado'))
+    costo_insumos  = SUM(CONSUMO_INSUMO.cantidad * INSUMO.costo_promedio)
+    costo_mano     = SUM(PRODUCCION.costo_mano_obra)  -- solo lotes del día (NULL=0)
+    ganancia_real  = ingreso - costo_insumos - costo_mano
+
+======================================================================
+FLUJOS
+======================================================================
+INSUMOS:  INGRESO_INSUMO (entra, actualiza costo_promedio) -> CONSUMO_INSUMO (sale, por lote) -> baja stock insumo
+PRODUCCION: CONSUMO_INSUMO + CONSUMO_SOBRA -> PRODUCCION (LOTE, estado seguimiento)
+    destino='tienda' = opcion especial: el lote va a la tienda en seguimiento.
+    costo_mano_obra = NULL salvo ayuda externa ese día.
+VENTA PAN: VENTA + DETALLE_VENTA (id_lote) ->
+    contado      -> lote estado='vendido' (ingreso, historial)
+    fiado        -> lote queda 'seguimiento'; COBRO registra pagos;
+                    al completar -> 'pagado' + lote 'vendido' (ingreso completo)
+PEDIDO:    PEDIDO (aceptado/seguimiento/rechazado) -> al cumplirse genera VENTA
+SOBRAS:    tienda devuelve pan -> SOBRAS(destino='perdida') = PÉRDIDA (merma)
+          reuso -> SOBRAS(rehacer_frances/tostadas, pendiente)
+                   -> CONSUMO_SOBRA la gasta -> SOBRAS(usado)
+BODEGA:    COMPRA_TIENDA (entra) -> VENTA_TIENDA (sale) -> baja stock tienda
+
+======================================================================
+CALCULOS
+======================================================================
+stock_insumo      = SUMA(Ingreso_Insumo.cantidad) - SUMA(Consumo_Insumo.cantidad)   [por insumo]
+stock_producto    = SUMA(Produccion.cantidad)     - SUMA(Detalle_Venta.cantidad)    [por producto]
+stock_tienda      = SUMA(Compra_Tienda.cantidad)  - SUMA(Venta_Tienda.cantidad)     [por producto tienda]
+ingreso_panaderia = SUMA(Venta.total donde estado_pago en ('contado','pagado'))
+perdida_tienda     = SUMA(Sobras.cantidad donde destino='perdida')
+costo_insumos_lote = SUM(CONSUMO_INSUMO.cantidad * INSUMO.costo_promedio)            [por PRODUCCION]
+costo_total_lote   = costo_insumos_lote + ISNULL(PRODUCCION.costo_mano_obra, 0)
+ganancia_real      = ingreso_panaderia - SUM(costo_total_lote del dia)
+estado_lote        = derivado de VENTA/COBRO/SOBRAS respecto a PRODUCCION
+
+======================================================================
+ESTADO
+======================================================================
+Partes disenadas y en este archivo:
+  [x] Insumos (entrada/consumo + costo_promedio)
+  [x] Produccion (lote: destino + estado + costo_mano_obra opcional)
+  [x] Ventas de pan (Venta + Detalle_Venta con id_lote, estado_pago)
+  [x] Clientes, Pedidos (3 estados, 3 origenes via tipo) y COBRO (fiar)
+  [x] Sobras (tienda = perdida; reuso = Consumo_Sobra)
+  [x] Bodega de comprados (TIENDA_PRODUCTO / COMPRA_TIENDA / VENTA_TIENDA) - separada del pan
+  [x] Reporte diario de tienda (VW_TIENDA_DIA: ingreso vs perdida)
+  [x] Costo de produccion (insumos obligatorio + mano de obra opcional) y margen real (VW_MARGEN_DIA)
+
+Pendiente (no disenado aun):
+  - Mas VIEWS de reportes (stock, ventas por periodo, pedidos por estado, cuentas por cobrar).
+  - Alerta de stock minimo de insumos (punto de pedido).
+  - Proveedores de insumos (de dónde compré, factura).
+  - Control de caja (arqueo por turno) si hay varios cajeros.
+  - Manejo de sobras parciales (cantidad consumida en vez de solo estado).
+  - Multiples locales de tienda (si aplica).

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sistema Panadería Cloud</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --card-bg: rgba(22, 26, 33, 0.8);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #f59e0b;
+      --primary-hover: #d97706;
+      --primary-glow: rgba(245, 158, 11, 0.2);
+      --secondary: #10b981;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --input-bg: #1f2937;
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      padding-bottom: 80px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
+    input, select { width: 100%; padding: 10px 12px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+    input:focus, select:focus { border-color: var(--primary); }
+    .row { display: flex; gap: 10px; }
+    .col { flex: 1; }
+
+    .btn { width: 100%; padding: 11px; border: none; border-radius: 8px; background: var(--primary); color: #000; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+
+    .table-container { overflow-x: auto; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--card-border); }
+    th { color: var(--text-muted); font-weight: 600; background: rgba(0, 0, 0, 0.3); }
+
+    .badge-stock { background: var(--primary-glow); color: var(--primary); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+
+    #toast {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: #000;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      display: none;
+      z-index: 1000;
+      font-size: 13px;
+    }
+
+    /* Tab Content Controls */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Bottom Navigation Bar */
+    nav.bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(13, 15, 18, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0;
+      z-index: 99;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      padding: 4px 8px;
+      border-radius: 8px;
+    }
+
+    .nav-item.active {
+      color: var(--primary);
+      background: var(--primary-glow);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="toast">Notificación</div>
+
+  <div class="container">
+    <header>
+      <div class="brand">
+        <span>🥖</span> Panadería Cloud
+      </div>
+    </header>
+
+    <main id="app-viewport">
+      <!-- MÓDULO 1: VISTA INSUMOS -->
+      <?!= include('InsumosView'); ?>
+    </main>
+  </div>
+
+  <!-- NAVEGACIÓN ENTRE VISTAS -->
+  <nav class="bottom-nav">
+    <a class="nav-item active" onclick="switchTab('insumos', this)">
+      <span>🌾</span>
+      <span>Insumos</span>
+    </a>
+    <a class="nav-item" onclick="switchTab('produccion', this)">
+      <span>🔥</span>
+      <span>Producción</span>
+    </a>
+    <a class="nav-item" onclick="switchTab('ventas', this)">
+      <span>🛒</span>
+      <span>Ventas</span>
+    </a>
+    <a class="nav-item" onclick="switchTab('cobros', this)">
+      <span>💳</span>
+      <span>Cobros</span>
+    </a>
+    <a class="nav-item" onclick="switchTab('reportes', this)">
+      <span>📊</span>
+      <span>Reportes</span>
+    </a>
+  </nav>
+
+  <script>
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(ni => ni.classList.remove('active'));
+      
+      const targetTab = document.getElementById('tab-' + tabId);
+      if (targetTab) targetTab.classList.add('active');
+      if (el) el.classList.add('active');
+      
+      if (tabId === 'insumos' && typeof cargarInsumos === 'function') {
+        cargarInsumos();
+      }
+    }
+
+    function callBackend(action, payload, cb) {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(res => {
+            if (res && res.success === false) {
+              showToast('Error: ' + res.error);
+            } else {
+              cb(res);
+            }
+          })
+          .withFailureHandler(err => showToast('Error servidor: ' + err.message))
+          .apiCall(action, payload);
+      }
+    }
+
+    window.onload = function() {
+      if (typeof cargarInsumos === 'function') cargarInsumos();
+    };
+  </script>
+</body>
+</html>

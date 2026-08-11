@@ -1,0 +1,204 @@
+<!-- VISTA MODULAR: MÓDULO 1 INSUMOS -->
+<div id="tab-insumos" class="tab-content active">
+
+  <!-- SECCIÓN 1: STOCK E INVENTARIO ACTUAL (ARRIBA - PRINCIPAL) -->
+  <div class="card">
+    <div class="card-title" style="justify-content: space-between;">
+      <span>🌾 1. Inventario Actual (Stock e Insumos)</span>
+      <div style="display: flex; gap: 8px;">
+        <button onclick="toggleFormCrear()" class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 11px;">➕ Nuevo Insumo</button>
+        <button onclick="cargarInsumos()" class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 11px;">🔄 Actualizar</button>
+      </div>
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Insumo</th>
+            <th>Stock Actual</th>
+            <th>Unidad</th>
+            <th>Costo Prom. (S/)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-insumos">
+          <tr><td colspan="5">Cargando inventario...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2: FORMULARIO DE REGISTRAR COMPRA -->
+  <div class="card">
+    <div class="card-title">📦 2. Registrar Compra de Materia Prima</div>
+    <form id="form-ingreso-insumo">
+      <div class="form-group">
+        <label>Seleccionar Insumo</label>
+        <select id="select-insumo-ingreso" required></select>
+      </div>
+      <div class="row">
+        <div class="col form-group">
+          <label>Cantidad Comprada</label>
+          <input type="number" step="0.001" id="cant-ingreso" placeholder="Ej: 50.0" required>
+        </div>
+        <div class="col form-group">
+          <label>Costo Unitario (S/)</label>
+          <input type="number" step="0.01" id="costo-ingreso" placeholder="Ej: 120.00" required>
+        </div>
+      </div>
+      <button type="submit" class="btn">Registrar Compra y Recalcular Costo</button>
+    </form>
+  </div>
+
+  <!-- SECCIÓN 3: HISTORIAL DE COMPRAS (AUDITORÍA CON FILTROS) -->
+  <div class="card">
+    <div class="card-title" style="justify-content: space-between; align-items: center;">
+      <span>📋 3. Historial de Compras Recientes</span>
+      <select id="filtro-historial-insumo" onchange="cargarHistorialCompras()" style="width: auto; padding: 4px 8px; font-size: 12px; background: var(--input-bg);">
+        <option value="">-- Todos los Insumos --</option>
+      </select>
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Insumo</th>
+            <th>Cantidad</th>
+            <th>Precio Unit. (S/)</th>
+            <th>Total (S/)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-historial-compras">
+          <tr><td colspan="6">Cargando historial...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4: CREAR INSUMO (OCULTO POR DEFECTO / DESPLEGABLE) -->
+  <div class="card" id="card-crear-insumo" style="display: none; border-color: var(--primary);">
+    <div class="card-title" style="justify-content: space-between;">
+      <span>➕ Catálogo: Crear Nuevo Insumo</span>
+      <button type="button" onclick="toggleFormCrear()" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✖</button>
+    </div>
+    <form id="form-crear-insumo">
+      <div class="row">
+        <div class="col form-group">
+          <label>Nombre del Insumo</label>
+          <input type="text" id="nombre-insumo" placeholder="Ej: Harina 000, Azúcar..." required>
+        </div>
+        <div class="col form-group">
+          <label>Unidad de Medida</label>
+          <select id="unidad-insumo">
+            <option value="kg">Kilogramos (kg)</option>
+            <option value="g">Gramos (g)</option>
+            <option value="lt">Litros (lt)</option>
+            <option value="u">Unidades (u)</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-secondary">Guardar en Catálogo</button>
+    </form>
+  </div>
+
+</div>
+
+<script>
+  function toggleFormCrear() {
+    const card = document.getElementById('card-crear-insumo');
+    card.style.display = (card.style.display === 'none') ? 'block' : 'none';
+  }
+
+  function cargarInsumos() {
+    callBackend('obtenerInsumos', null, res => {
+      const insumos = (res && res.success !== false && res.data) ? res.data : [];
+      const tbody = document.getElementById('tbody-insumos');
+      const selectIngreso = document.getElementById('select-insumo-ingreso');
+      const selectFiltro = document.getElementById('filtro-historial-insumo');
+      
+      tbody.innerHTML = '';
+      selectIngreso.innerHTML = '';
+      
+      // Preservar la opción por defecto en el filtro
+      const valFiltroPrev = selectFiltro.value;
+      selectFiltro.innerHTML = '<option value="">-- Todos los Insumos --</option>';
+
+      if (insumos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No hay insumos registrados. Usá el botón "+ Nuevo Insumo".</td></tr>';
+      } else {
+        insumos.forEach(i => {
+          tbody.innerHTML += `
+            <tr>
+              <td>#${i.id_insumo}</td>
+              <td><strong>${i.nombre}</strong></td>
+              <td><span class="badge-stock">${i.stock}</span></td>
+              <td>${i.unidad}</td>
+              <td>S/ ${i.costo_promedio}</td>
+            </tr>`;
+          selectIngreso.innerHTML += `<option value="${i.id_insumo}">${i.nombre} (${i.unidad}) - Stock: ${i.stock}</option>`;
+          selectFiltro.innerHTML += `<option value="${i.id_insumo}">${i.nombre}</option>`;
+        });
+        selectFiltro.value = valFiltroPrev;
+      }
+
+      cargarHistorialCompras();
+    });
+  }
+
+  function cargarHistorialCompras() {
+    const idInsumo = document.getElementById('filtro-historial-insumo').value || null;
+    
+    callBackend('obtenerHistorialIngresos', { id_insumo: idInsumo, limite: 10 }, res => {
+      const tbody = document.getElementById('tbody-historial-compras');
+      tbody.innerHTML = '';
+
+      if (!res || res.success === false || !res.data || res.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay compras para el filtro seleccionado.</td></tr>';
+        return;
+      }
+
+      res.data.forEach(h => {
+        tbody.innerHTML += `
+          <tr>
+            <td>#${h.id_ingreso}</td>
+            <td>${h.fecha}</td>
+            <td><strong>${h.insumo_nombre}</strong></td>
+            <td>${h.cantidad} ${h.unidad}</td>
+            <td>S/ ${h.costo_unitario}</td>
+            <td><strong>S/ ${h.costo_total}</strong></td>
+          </tr>`;
+      });
+    });
+  }
+
+  document.getElementById('form-crear-insumo').onsubmit = function(e) {
+    e.preventDefault();
+    const payload = {
+      nombre: document.getElementById('nombre-insumo').value,
+      unidad: document.getElementById('unidad-insumo').value
+    };
+    callBackend('crearInsumo', payload, res => {
+      showToast(res.message);
+      document.getElementById('nombre-insumo').value = '';
+      toggleFormCrear();
+      cargarInsumos();
+    });
+  };
+
+  document.getElementById('form-ingreso-insumo').onsubmit = function(e) {
+    e.preventDefault();
+    const payload = {
+      id_insumo: document.getElementById('select-insumo-ingreso').value,
+      cantidad: document.getElementById('cant-ingreso').value,
+      costo_unitario: document.getElementById('costo-ingreso').value
+    };
+    callBackend('registrarIngresoInsumo', payload, res => {
+      showToast(res.message);
+      document.getElementById('cant-ingreso').value = '';
+      document.getElementById('costo-ingreso').value = '';
+      cargarInsumos();
+    });
+  };
+</script>

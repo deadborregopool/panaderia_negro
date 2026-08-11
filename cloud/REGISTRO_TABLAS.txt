@@ -1,0 +1,55 @@
+========================================================================
+REGISTRO OFICIAL DE ESTADO DE TABLAS Y BASE DE DATOS - PANADERÍA CLOUD
+========================================================================
+Propósito: Fuente de verdad inmutable del estado del esquema, pestañas creadas 
+y funciones verificadas para el equipo, GitHub y agentes AI.
+
+------------------------------------------------------------------------
+1. TABLAS CREADAS E INICIALIZADAS EN GOOGLE SHEETS
+------------------------------------------------------------------------
+[x] INSUMO
+    - id_insumo (INT, autoincremental)
+    - nombre (VARCHAR/Texto)
+    - unidad (VARCHAR: kg, g, lt, u)
+    - costo_promedio_centavos (INT: céntimos de Soles S/)
+    * Nota: Stock NO se almacena en celda; es calculado dinámicamente.
+
+[x] INGRESO_INSUMO
+    - id_ingreso (INT, autoincremental)
+    - id_insumo (INT, FK -> INSUMO)
+    - fecha (DATE: AAAA-MM-DD)
+    - cantidad (DECIMAL: 10,3)
+    - costo_unitario_centavos (INT: céntimos de Soles S/)
+
+[x] CONSUMO_INSUMO
+    - id_consumo (INT, autoincremental)
+    - id_produccion (INT, FK -> PRODUCCION)
+    - id_insumo (INT, FK -> INSUMO)
+    - cantidad (DECIMAL: 10,3)
+
+------------------------------------------------------------------------
+2. TABLAS PENDIENTES DE INICIALIZAR EN SHEETS (MÓDULOS 2 AL 7)
+------------------------------------------------------------------------
+[ ] PRODUCTO
+[ ] PRODUCCION
+[ ] VENTA
+[ ] DETALLE_VENTA
+[ ] CLIENTE
+[ ] PEDIDO
+[ ] DETALLE_PEDIDO
+[ ] COBRO
+[ ] SOBRAS
+[ ] CONSUMO_SOBRA
+[ ] TIENDA_PRODUCTO
+[ ] COMPRA_TIENDA
+[ ] VENTA_TIENDA
+
+------------------------------------------------------------------------
+3. FUNCIONES BACKEND IMPLEMENTADAS Y REGISTRADAS
+------------------------------------------------------------------------
+[x] inicializarBaseDatos()           -> Crea pestañas activas con encabezados en negrita.
+[x] crearInsumo(nombre, unidad)      -> Alta de materia prima en INSUMO.
+[x] registrarIngresoInsumo(...)      -> Carga compra y recalcula costo promedio ponderado.
+[x] obtenerInsumosConStock()        -> Calcula stock en vivo: SUM(Ingresos) - SUM(Consumos).
+[x] obtenerHistorialIngresos()       -> Trazabilidad e historial de compras en Soles S/.
+========================================================================

@@ -1,0 +1,147 @@
+========================================================================
+GUÍA DE SISTEMA - PANADERÍA (2 ENTORNOS)
+========================================================================
+Propósito:
+  Brief para usar con Antigravity (agente de código). Mismo modelo de
+  dominio, DOS implementaciones distintas. Adjuntar también el archivo
+  base_datos_esquema.txt (fuente de verdad del modelo).
+
+Decisión de arquitectura (importante):
+  El SISTEMA (qué datos, qué reglas, qué cálculos) es INDEPENDIENTE de
+  DÓNDE corre. El modelo de dominio se diseña UNA vez y viaja a los dos
+  lados. Solo cambia la CAPA DE PERSISTENCIA y la CAPA DE UI.
+
+------------------------------------------------------------------------
+OBJETIVO: DOS VERSIONES DEL MISMO SISTEMA
+------------------------------------------------------------------------
+  1) LOCAL  -> sistema interno, PC prendida en el local (SQL Server).
+  2) CLOUD  -> barato / sin servidor, acceso desde el celular
+               (Google Sheets + Apps Script + web app móvil).
+
+------------------------------------------------------------------------
+MODELO DE DOMINIO COMPARTIDO (fuente de verdad)
+------------------------------------------------------------------------
+Referencia completa: base_datos_esquema.txt (SQL Server).
+Resumen de lo que AMBOS entornos deben cumplir:
+
+MÓDULOS (7):
+  1. INSUMOS          - materia prima, stock CALCULADO.
+  2. PRODUCCIÓN       - pan por LOTE (destino tienda/interno, estado).
+  3. VENTAS PAN       - mostrador/pedido; contado o fiado (COBRO = pagos).
+  4. CLIENTES/PEDIDOS - encargos de clientes (3 estados).
+  5. SOBRAS           - tienda devuelve pan = PERDIDA; reuso en producción.
+  6. BODEGA COMP.      - productos comprados para revender (separado del pan).
+  7. REPORTES         - VIEWS: VW_TIENDA_DIA (ingreso vs perdida),
+                        VW_MARGEN_DIA (ganancia real).
+
+REGLAS DE NEGOCIO CLAVE (aplican en los dos entornos):
+  - Stock SIEMPRE calculado (no almacenado): una sola fuente de verdad
+    = los movimientos (ingresos/consumos/ventas).
+  - Tipos de dinero: precisión exacta. En SQL Server se usa DECIMAL
+    (10,2)/(10,3). En Sheets se guarda en CÉNTIMOS (entero) para evitar
+    errores de float (IEEE 754). NO usar float para plata en ningún lado.
+  - Sin seguimiento de masa intermedia: el sobrante de masa es merma.
+  - Consumo de insumos por LOTE (uso real), no por receta.
+  - Costo de producción = MATERIA PRIMA (insumos, OBLIGATORIO) +
+    MANO DE OBRA (OPCIONAL, solo si hay ayuda externa en el lote; NULL).
+  - Dos "tiendas" separadas y NO se confunden:
+      (a) TIENDA = shop del pan horneado (lote en seguimiento).
+      (b) BODEGA DE COMPRADOS = productos comprados para revender (tablas
+          TIENDA_PRODUCTO / COMPRA_TIENDA / VENTA_TIENDA, APARTE del pan).
+  - INSUMO.costo_promedio = promedio ponderado, se actualiza en INGRESO_INSUMO.
+  - COBRO (fiar): VENTA fiada queda estado_pago='fiado'. Cada COBRO suma.
+    Cuando SUM(COBRO.monto) >= VENTA.total -> 'pagado' y el lote pasa a
+    estado='vendido' (ganancia completa). "Fiado se paga completo".
+
+FLUJO CENTRAL DEL LOTE DE PAN:
+  PRODUCCION (lote, estado 'seguimiento')
+    -> va a TIENDA como lote en seguimiento
+       -> se VENDE (contado/fiado) => ingreso / historial
+       -> se FIA                   => queda en seguimiento; COBRO hasta pagar
+       -> vuelve SOBRAS (perdida)  => merma (no genera ganancia)
+
+CÁLCULOS (implementar en ambos entornos):
+  stock_insumo      = SUMA(Ingreso_Insumo.cantidad) - SUMA(Consumo_Insummo.cantidad)
+  stock_producto    = SUMA(Produccion.cantidad)     - SUMA(Detalle_Venta.cantidad)
+  stock_tienda      = SUMA(Compra_Tienda.cantidad)  - SUMA(Venta_Tienda.cantidad)
+  ingreso           = SUMA(Venta.total donde estado_pago en ('contado','pagado'))
+  perdida_tienda    = SUMA(Sobras.cantidad donde destino='perdida')
+  costo_insumos_lote= SUM(CONSUMO_INSUMO.cantidad * INSUMO.costo_promedio)
+  costo_total_lote  = costo_insumos_lote + ISNULL(PRODUCCION.costo_mano_obra,0)
+  ganancia_real     = ingreso - SUM(costo_total_lote del dia)
+
+------------------------------------------------------------------------
+ENTORNO 1 - LOCAL (SQL Server + backend + frontend)
+------------------------------------------------------------------------
+Stack sugerido:
+  - Motor: SQL Server (tipos DECIMAL, PK INT IDENTITY).
+  - Backend: API (Node/Python/DotNet) que expone CRUD y reportes.
+  - Frontend: web app que corre en la PC del local (localhost).
+  - No requiere internet para operar en el local.
+
+Estado actual: el DISEÑO de las tablas ya está en base_datos_esquema.txt
+(puede pasarse directo a CREATE TABLE). Falta: crear las tablas, el
+backend, el frontend y las VIEWS de reporte.
+
+------------------------------------------------------------------------
+ENTORNO 2 - CLOUD (Google Sheets + Apps Script + web app móvil)
+------------------------------------------------------------------------
+Objetivo: cero servidor, se abre desde el celular, se comparte con
+empleados, sin mantenimiento ni hosting.
+
+Mapeo del modelo a Sheets:
+  - Una PESTAÑA (hoja) por cada "tabla" del esquema:
+      INSUMO, INGRESO_INSUMO, CONSUMO_INSUMO, PRODUCTO, PRODUCCION,
+      VENTA, DETALLE_VENTA, CLIENTE, PEDIDO, DETALLE_PEDIDO, COBRO,
+      SOBRAS, CONSUMO_SOBRA, TIENDA_PRODUCTO, COMPRA_TIENDA, VENTA_TIENDA.
+  - Columna A = ID. Autoincremental MANUAL: próximo id = MAX(columna A)+1,
+    o llevar un contador en una pestaña CONFIG.
+  - Fila 1 = encabezados (nombres de columna iguales al esquema).
+  - Reportes (VW_TIENDA_DIA / VW_MARGEN_DIA): funciones de Apps Script que
+    leen los rangos y devuelven/escriben el resultado (o fórmulas).
+
+Apps Script como lógica:
+  - Funciones CRUD por módulo (alta/baja/modificación).
+  - Cálculo de stock (lee rangos como arrays 2D, procesa en memoria).
+  - Actualización de costo_promedio ponderado en INGRESO_INSUMO.
+  - Regla de fiado/COBRO y transición de estado del lote.
+  - Web app (HTMLService) para ingreso de datos desde el celular.
+
+Restricciones que CUIDAR en Sheets (no existen en SQL Server):
+  - NO hay claves foráneas: validar integridad en CÓDIGO (que un
+    DETALLE_VENTA no apunte a un id_venta inexistente, stock no negativo).
+  - NO hay transacciones atómicas: ante error, dejar datos limpios.
+  - CONCURRENCIA: una ejecución a la vez; evitar escrituras simultáneas
+    de varios usuarios chocando (usar bloqueo lógico o escribir al final).
+  - DINERO en CÉNTIMOS (entero). Mostrar dividido por 100 en la UI.
+  - Límites: ~10 millones de celdas por hoja (de sobra para una panadería).
+
+------------------------------------------------------------------------
+QUÉ YA ESTÁ DISEÑADO / PENDIENTE (de base_datos_esquema.txt)
+------------------------------------------------------------------------
+Hecho:
+  [x] Insumos (entrada/consumo + costo_promedio)
+  [x] Producción (lote: destino + estado + costo_mano_obra opcional)
+  [x] Ventas de pan (Venta + Detalle_Venta con id_lote, estado_pago)
+  [x] Clientes, Pedidos (3 estados, 3 orígenes vía tipo) y COBRO (fiar)
+  [x] Sobras (tienda = perdida; reuso = Consumo_Sobra)
+  [x] Bodega de comprados (separada del pan)
+  [x] Reporte diario de tienda (VW_TIENDA_DIA) y margen real (VW_MARGEN_DIA)
+
+Pendiente (no diseñado aún):
+  - Más VIEWS (stock, ventas por periodo, pedidos por estado, cxc).
+  - Alerta de stock mínimo de insumos (punto de pedido).
+  - Proveedores de insumos (factura, de dónde se compró).
+  - Control de caja (arqueo por turno) si hay varios cajeros.
+  - Manejo de sobras parciales (cantidad consumida, no solo estado).
+  - Múltiples locales de tienda (si aplica).
+
+------------------------------------------------------------------------
+CÓMO USAR ESTA GUÍA CON ANTIGRAVITY
+------------------------------------------------------------------------
+  1. Pegar este archivo + base_datos_esquema.txt como contexto.
+  2. Indicar ENTORNO objetivo: "LOCAL (SQL Server)" o "CLOUD (Sheets)".
+  3. Pedir la implementación respetando las REGLAS DE NEGOCIO y CÁLCULOS
+     de arriba (el modelo es compartido; solo cambia la persistencia/UI).
+  4. Recordar las restricciones del entorno elegido (ver secciones).
+========================================================================
