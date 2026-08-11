@@ -49,7 +49,10 @@ y funciones verificadas para el equipo, GitHub y agentes AI.
 ------------------------------------------------------------------------
 [x] inicializarBaseDatos()           -> Crea pestañas activas con encabezados en negrita.
 [x] crearInsumo(nombre, unidad)      -> Alta de materia prima en INSUMO.
+[x] actualizarInsumo(...)            -> Modifica nombre, unidad y costo promedio de un insumo.
 [x] registrarIngresoInsumo(...)      -> Carga compra y recalcula costo promedio ponderado.
+[x] actualizarIngresoInsumo(...)     -> Modifica compra en historial y recalcula costo promedio ponderado.
+[x] recalcularCostoPromedioInsumo()  -> Recalcula costo promedio ponderado sobre compras de un insumo.
 [x] obtenerInsumosConStock()        -> Calcula stock en vivo: SUM(Ingresos) - SUM(Consumos).
 [x] obtenerHistorialIngresos()       -> Trazabilidad e historial de compras en Soles S/.
 ========================================================================

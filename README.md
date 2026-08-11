@@ -11,7 +11,7 @@ Bienvenido al repositorio oficial del **Sistema de Gestión de Panadería**. Est
 
 | Módulo | Descripción | Estado | Entorno Cloud |
 | :--- | :--- | :---: | :---: |
-| **1. Insumos** | Materia prima, stock dinámico, compras en Soles (`S/`), costo promedio ponderado e historial con filtros. | 🟢 Completado | ✅ Operativo |
+| **1. Insumos** | Materia prima, stock dinámico, compras en Soles (`S/`), costo promedio ponderado, historial con filtros y edición de catálogo/compras. | 🟢 Completado | ✅ Operativo |
 | **2. Producción** | Horneado por lotes, consumo real de insumos por lote y mano de obra opcional. | 🟡 Pendiente | ⏳ Siguiente fase |
 | **3. Ventas Pan** | Ventas de mostrador y pedidos (contado vs fiado) asociando el lote de producción. | 🔴 Pendiente | ⏳ Diseñado en esquema |
 | **4. Clientes y Cobros** | Gestión de clientes, fiados y abonos parciales/totales. | 🔴 Pendiente | ⏳ Diseñado en esquema |
@@ -25,11 +25,11 @@ Bienvenido al repositorio oficial del **Sistema de Gestión de Panadería**. Est
 
 Para mantener la alineación estricta entre el equipo de desarrollo, colaboradores y asistentes AI:
 
-- [AGENTS.md](file:///C:/Programas/Panaderia/AGENTS.md): **Protocolo de trabajo en 3 Fases** (Análisis ➔ Planificación ➔ Ejecución) con aprobación explícita obligatoria.
-- [REGISTRO_TABLAS.txt](file:///C:/Programas/Panaderia/cloud/REGISTRO_TABLAS.txt): Fuente de verdad de las pestañas de Google Sheets inicializadas, columnas exactas y funciones backend verificadas.
-- [DECISIONES_ARQUITECTURA.md](file:///C:/Programas/Panaderia/cloud/DECISIONES_ARQUITECTURA.md): Registro de decisiones sobre la moneda oficial (`S/`), costeo por Promedio Ponderado y jerarquía visual de componentes.
-- [base_datos_esquema.txt](file:///C:/Programas/Panaderia/base_datos_esquema.txt): Especificación completa del modelo de datos de la panadería.
-- [panaderia_guia_2entornos.txt](file:///C:/Programas/Panaderia/panaderia_guia_2entornos.txt): Guía de arquitectura comparativa entre los entornos Local y Cloud.
+- [AGENTS.md](AGENTS.md): **Protocolo de trabajo en 3 Fases** (Análisis ➔ Planificación ➔ Ejecución) con aprobación explícita obligatoria.
+- [REGISTRO_TABLAS.txt](cloud/REGISTRO_TABLAS.txt): Fuente de verdad de las pestañas de Google Sheets inicializadas, columnas exactas y funciones backend verificadas.
+- [DECISIONES_ARQUITECTURA.md](cloud/DECISIONES_ARQUITECTURA.md): Registro de decisiones sobre la moneda oficial (`S/`), costeo por Promedio Ponderado y jerarquía visual de componentes.
+- [base_datos_esquema.txt](base_datos_esquema.txt): Especificación completa del modelo de datos de la panadería.
+- [panaderia_guia_2entornos.txt](panaderia_guia_2entornos.txt): Guía de arquitectura comparativa entre los entornos Local y Cloud.
 
 ---
 

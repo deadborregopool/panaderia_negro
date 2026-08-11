@@ -145,3 +145,100 @@ function registrarIngresoInsumo(id_insumo, cantidad, costo_unitario, fecha) {
     message: 'Compra registrada y costo promedio ponderado actualizado.'
   };
 }
+
+/**
+ * Actualiza los datos de un insumo (nombre, unidad y costo promedio)
+ */
+function actualizarInsumo(id_insumo, nombre, unidad, costo_promedio) {
+  if (!id_insumo) throw new Error('ID de insumo no especificado');
+  if (!nombre || !unidad) throw new Error('Nombre y unidad son obligatorios');
+
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.INSUMO);
+  const data = sheet.getDataRange().getValues();
+
+  let encontrado = false;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == id_insumo) {
+      sheet.getRange(i + 1, 2).setValue(nombre);
+      sheet.getRange(i + 1, 3).setValue(unidad);
+      if (costo_promedio !== undefined && costo_promedio !== null && costo_promedio !== '') {
+        const costoCentavos = aCentavos(costo_promedio);
+        sheet.getRange(i + 1, 4).setValue(costoCentavos);
+      }
+      encontrado = true;
+      break;
+    }
+  }
+
+  if (!encontrado) throw new Error('Insumo no encontrado ID: ' + id_insumo);
+  return { success: true, message: `Insumo #${id_insumo} ('${nombre}') actualizado con éxito.` };
+}
+
+/**
+ * Recalcula el costo promedio ponderado de un insumo a partir de todas sus compras registradas
+ */
+function recalcularCostoPromedioInsumo(id_insumo) {
+  const ingresos = leerTabla(SHEETS.INGRESO_INSUMO).filter(ing => ing.id_insumo == id_insumo);
+  
+  let sumaValorCentavos = 0;
+  let sumaCantidad = 0;
+
+  ingresos.forEach(ing => {
+    const cant = parseFloat(ing.cantidad || 0);
+    const costoUnitCentavos = parseInt(ing.costo_unitario_centavos || 0, 10);
+    sumaCantidad += cant;
+    sumaValorCentavos += (cant * costoUnitCentavos);
+  });
+
+  const nuevoCostoPromCentavos = sumaCantidad > 0 ? Math.round(sumaValorCentavos / sumaCantidad) : 0;
+
+  const ss = getSpreadsheet();
+  const sheetInsumo = ss.getSheetByName(SHEETS.INSUMO);
+  const dataInsumo = sheetInsumo.getDataRange().getValues();
+  for (let i = 1; i < dataInsumo.length; i++) {
+    if (dataInsumo[i][0] == id_insumo) {
+      sheetInsumo.getRange(i + 1, 4).setValue(nuevoCostoPromCentavos);
+      break;
+    }
+  }
+
+  return nuevoCostoPromCentavos;
+}
+
+/**
+ * Modifica una compra del historial y recalcula el costo promedio ponderado del insumo
+ */
+function actualizarIngresoInsumo(id_ingreso, cantidad, costo_unitario) {
+  const cantNum = parseFloat(cantidad);
+  const costoUnitCentavos = aCentavos(costo_unitario);
+  if (cantNum <= 0) throw new Error('La cantidad ingresada debe ser mayor a 0');
+
+  const ss = getSpreadsheet();
+  const sheetIngreso = ss.getSheetByName(SHEETS.INGRESO_INSUMO);
+  const data = sheetIngreso.getDataRange().getValues();
+
+  let idInsumo = null;
+  let encontrado = false;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == id_ingreso) {
+      idInsumo = data[i][1];
+      sheetIngreso.getRange(i + 1, 4).setValue(cantNum);
+      sheetIngreso.getRange(i + 1, 5).setValue(costoUnitCentavos);
+      encontrado = true;
+      break;
+    }
+  }
+
+  if (!encontrado) throw new Error('Compra no encontrada ID: ' + id_ingreso);
+
+  // Recalcular el costo promedio ponderado para el insumo afectado
+  recalcularCostoPromedioInsumo(idInsumo);
+
+  return {
+    success: true,
+    message: `Compra #${id_ingreso} actualizada y costo promedio recalculado.`
+  };
+}
+

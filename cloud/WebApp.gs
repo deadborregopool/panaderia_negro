@@ -40,6 +40,21 @@ function apiCall(action, payload) {
           payload.fecha
         );
 
+      case 'actualizarInsumo':
+        return actualizarInsumo(
+          payload.id_insumo,
+          payload.nombre,
+          payload.unidad,
+          payload.costo_promedio
+        );
+
+      case 'actualizarIngresoInsumo':
+        return actualizarIngresoInsumo(
+          payload.id_ingreso,
+          payload.cantidad,
+          payload.costo_unitario
+        );
+
       default:
         throw new Error('Acción no válida: ' + action);
     }

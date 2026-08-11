@@ -19,10 +19,11 @@
             <th>Stock Actual</th>
             <th>Unidad</th>
             <th>Costo Prom. (S/)</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody id="tbody-insumos">
-          <tr><td colspan="5">Cargando inventario...</td></tr>
+          <tr><td colspan="6">Cargando inventario...</td></tr>
         </tbody>
       </table>
     </div>
@@ -50,7 +51,7 @@
     </form>
   </div>
 
-  <!-- SECCIÓN 3: HISTORIAL DE COMPRAS (AUDITORÍA CON FILTROS) -->
+  <!-- SECCIÓN 3: HISTORIAL DE COMPRAS (AUDITORÍA CON FILTROS Y EDICIÓN) -->
   <div class="card">
     <div class="card-title" style="justify-content: space-between; align-items: center;">
       <span>📋 3. Historial de Compras Recientes</span>
@@ -68,10 +69,11 @@
             <th>Cantidad</th>
             <th>Precio Unit. (S/)</th>
             <th>Total (S/)</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody id="tbody-historial-compras">
-          <tr><td colspan="6">Cargando historial...</td></tr>
+          <tr><td colspan="7">Cargando historial...</td></tr>
         </tbody>
       </table>
     </div>
@@ -103,6 +105,69 @@
     </form>
   </div>
 
+  <!-- SECCIÓN 5: EDITAR DATOS DE INSUMO (MODAL / DESPLEGABLE) -->
+  <div class="card" id="card-editar-insumo" style="display: none; border-color: #3b82f6;">
+    <div class="card-title" style="justify-content: space-between;">
+      <span>✏️ Editar Insumo del Catálogo</span>
+      <button type="button" onclick="cerrarEditarInsumo()" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✖</button>
+    </div>
+    <form id="form-editar-insumo">
+      <input type="hidden" id="edit-id-insumo">
+      <div class="row">
+        <div class="col form-group">
+          <label>Nombre del Insumo</label>
+          <input type="text" id="edit-nombre-insumo" required>
+        </div>
+        <div class="col form-group">
+          <label>Unidad de Medida</label>
+          <select id="edit-unidad-insumo">
+            <option value="kg">Kilogramos (kg)</option>
+            <option value="g">Gramos (g)</option>
+            <option value="lt">Litros (lt)</option>
+            <option value="u">Unidades (u)</option>
+          </select>
+        </div>
+        <div class="col form-group">
+          <label>Costo Promedio (S/)</label>
+          <input type="number" step="0.01" id="edit-costo-promedio-insumo" placeholder="Ej: 5.50" required>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="submit" class="btn" style="background: #2563eb;">Guardar Cambios en Insumo</button>
+        <button type="button" class="btn btn-secondary" onclick="cerrarEditarInsumo()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- SECCIÓN 6: EDITAR REGISTRO DE COMPRA (MODAL / DESPLEGABLE) -->
+  <div class="card" id="card-editar-compra" style="display: none; border-color: #f59e0b;">
+    <div class="card-title" style="justify-content: space-between;">
+      <span>✏️ Corregir Registro de Compra en Historial</span>
+      <button type="button" onclick="cerrarEditarCompra()" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✖</button>
+    </div>
+    <form id="form-editar-compra">
+      <input type="hidden" id="edit-id-ingreso">
+      <div class="form-group">
+        <label>Insumo</label>
+        <input type="text" id="edit-compra-insumo-nombre" disabled style="opacity: 0.7;">
+      </div>
+      <div class="row">
+        <div class="col form-group">
+          <label>Nueva Cantidad Comprada</label>
+          <input type="number" step="0.001" id="edit-cant-ingreso" required>
+        </div>
+        <div class="col form-group">
+          <label>Nuevo Costo Unitario (S/)</label>
+          <input type="number" step="0.01" id="edit-costo-ingreso" required>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="submit" class="btn" style="background: #d97706;">Guardar y Recalcular Costo Promedio</button>
+        <button type="button" class="btn btn-secondary" onclick="cerrarEditarCompra()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+
 </div>
 
 <script>
@@ -126,9 +191,10 @@
       selectFiltro.innerHTML = '<option value="">-- Todos los Insumos --</option>';
 
       if (insumos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No hay insumos registrados. Usá el botón "+ Nuevo Insumo".</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay insumos registrados. Usá el botón "+ Nuevo Insumo".</td></tr>';
       } else {
         insumos.forEach(i => {
+          const nombreEscapado = i.nombre.replace(/'/g, "\\'");
           tbody.innerHTML += `
             <tr>
               <td>#${i.id_insumo}</td>
@@ -136,6 +202,9 @@
               <td><span class="badge-stock">${i.stock}</span></td>
               <td>${i.unidad}</td>
               <td>S/ ${i.costo_promedio}</td>
+              <td>
+                <button onclick="abrirEditarInsumo(${i.id_insumo}, '${nombreEscapado}', '${i.unidad}', '${i.costo_promedio}')" class="btn btn-secondary" style="width: auto; padding: 2px 8px; font-size: 11px;">✏️ Editar</button>
+              </td>
             </tr>`;
           selectIngreso.innerHTML += `<option value="${i.id_insumo}">${i.nombre} (${i.unidad}) - Stock: ${i.stock}</option>`;
           selectFiltro.innerHTML += `<option value="${i.id_insumo}">${i.nombre}</option>`;
@@ -155,11 +224,12 @@
       tbody.innerHTML = '';
 
       if (!res || res.success === false || !res.data || res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay compras para el filtro seleccionado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No hay compras para el filtro seleccionado.</td></tr>';
         return;
       }
 
       res.data.forEach(h => {
+        const insumoEscapado = h.insumo_nombre.replace(/'/g, "\\'");
         tbody.innerHTML += `
           <tr>
             <td>#${h.id_ingreso}</td>
@@ -168,11 +238,72 @@
             <td>${h.cantidad} ${h.unidad}</td>
             <td>S/ ${h.costo_unitario}</td>
             <td><strong>S/ ${h.costo_total}</strong></td>
+            <td>
+              <button onclick="abrirEditarCompra(${h.id_ingreso}, '${insumoEscapado}', ${h.cantidad}, '${h.costo_unitario}')" class="btn btn-secondary" style="width: auto; padding: 2px 8px; font-size: 11px;">✏️ Editar</button>
+            </td>
           </tr>`;
       });
     });
   }
 
+  // EDICIÓN DE INSUMO DE CATÁLOGO
+  function abrirEditarInsumo(id, nombre, unidad, costoPromedio) {
+    document.getElementById('edit-id-insumo').value = id;
+    document.getElementById('edit-nombre-insumo').value = nombre;
+    document.getElementById('edit-unidad-insumo').value = unidad;
+    document.getElementById('edit-costo-promedio-insumo').value = costoPromedio;
+    document.getElementById('card-editar-insumo').style.display = 'block';
+    document.getElementById('card-editar-insumo').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function cerrarEditarInsumo() {
+    document.getElementById('card-editar-insumo').style.display = 'none';
+  }
+
+  document.getElementById('form-editar-insumo').onsubmit = function(e) {
+    e.preventDefault();
+    const payload = {
+      id_insumo: document.getElementById('edit-id-insumo').value,
+      nombre: document.getElementById('edit-nombre-insumo').value,
+      unidad: document.getElementById('edit-unidad-insumo').value,
+      costo_promedio: document.getElementById('edit-costo-promedio-insumo').value
+    };
+    callBackend('actualizarInsumo', payload, res => {
+      showToast(res.message);
+      cerrarEditarInsumo();
+      cargarInsumos();
+    });
+  };
+
+  // EDICIÓN DE REGISTRO DE COMPRA
+  function abrirEditarCompra(idIngreso, insumoNombre, cantidad, costoUnitario) {
+    document.getElementById('edit-id-ingreso').value = idIngreso;
+    document.getElementById('edit-compra-insumo-nombre').value = insumoNombre;
+    document.getElementById('edit-cant-ingreso').value = cantidad;
+    document.getElementById('edit-costo-ingreso').value = costoUnitario;
+    document.getElementById('card-editar-compra').style.display = 'block';
+    document.getElementById('card-editar-compra').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function cerrarEditarCompra() {
+    document.getElementById('card-editar-compra').style.display = 'none';
+  }
+
+  document.getElementById('form-editar-compra').onsubmit = function(e) {
+    e.preventDefault();
+    const payload = {
+      id_ingreso: document.getElementById('edit-id-ingreso').value,
+      cantidad: document.getElementById('edit-cant-ingreso').value,
+      costo_unitario: document.getElementById('edit-costo-ingreso').value
+    };
+    callBackend('actualizarIngresoInsumo', payload, res => {
+      showToast(res.message);
+      cerrarEditarCompra();
+      cargarInsumos();
+    });
+  };
+
+  // HANDLERS ORIGINALES DE CREACIÓN Y COMPRA
   document.getElementById('form-crear-insumo').onsubmit = function(e) {
     e.preventDefault();
     const payload = {
